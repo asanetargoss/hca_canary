@@ -22,7 +22,6 @@ import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
-import radixcore.network.ByteBufIO;
 import targoss.hca_canary.HCACanary;
 import targoss.hca_canary.network.Spoof;
 import targoss.hca_canary.util.UtilNetwork;
@@ -79,7 +78,7 @@ public class CanaryListener {
     
     public static class Client {
         protected boolean canariesRegistered = false;
-        
+
         @SubscribeEvent(priority=EventPriority.HIGHEST)
         void registerCanaries(AttachCapabilitiesEvent<Entity> event) {
             if (canariesRegistered) {
@@ -163,7 +162,28 @@ public class CanaryListener {
         HCACanary.LOGGER.info("Registering server canaries");
         
         {
-            // TODO: Server canary for MCA (PacketWatchedUpdateS)
+            ByteBuf buf = Unpooled.buffer();
+            buf.writeByte(0); // 1 = PacketWatchedUpdateS
+            buf.writeInt(-1); // fake entity ID
+            
+            // ByteBufIO.writeObject (compressed ObjectInputStream. Phew!)
+            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+            try {
+                ObjectOutputStream oos = new ObjectOutputStream(byteStream);
+                oos.writeObject(new Canary("RadixCore PacketWatchedUpdateS ( serializationisbad - please see https://github.com/dogboy21/serializationisbad )"));
+                oos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            byte[] bytes = byteStream.toByteArray();
+            try {
+                byteStream.close();
+            } catch (IOException iOException) {}
+            byte[] compressedBytes = UtilNetwork.compress(bytes);
+            buf.writeInt(compressedBytes.length);
+            buf.writeBytes(compressedBytes);
+            
+            Spoof.Client.spoofBytes("RadixCore", buf);
         }
         
         if (Canary.canaryDied.get()) {

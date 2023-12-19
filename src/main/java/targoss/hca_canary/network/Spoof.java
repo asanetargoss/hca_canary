@@ -2,6 +2,7 @@ package targoss.hca_canary.network;
 
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.play.client.CPacketCustomPayload;
 import net.minecraft.network.play.server.SPacketCustomPayload;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.network.FMLEmbeddedChannel;
@@ -33,8 +34,14 @@ public class Spoof {
                 throw new IllegalStateException("Spoofing server packets from wrong thread");
             }
 
-            // TODO: Server sends a packet to itself, using fake player. See if that works, using our own test network packet
-            // TODO: Once we confirm it works (or we find a workaround), build framework for sending spoofed packets to arbitrary channels, and confirm that spoofed packets fail to be deserialized via ObjectInputStream
+            FMLEmbeddedChannel channel = NetworkRegistry.INSTANCE.getChannel(channelName, Side.SERVER);
+            CPacketCustomPayload payload = new CPacketCustomPayload(channelName, new PacketBuffer(buf));
+            FMLProxyPacket proxyPacket = new FMLProxyPacket(payload);
+            try {
+                channel.writeInbound(proxyPacket);
+            } catch (Throwable e) {
+                HCACanary.LOGGER.debug("The following exception was caught while running a canary packet spoof. This is most likely normal and the exception can safely be ignored.", e);
+            }
         }
     }
 }
